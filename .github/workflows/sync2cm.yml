@@ -1,0 +1,53 @@
+name: SYNC
+env:
+  # Username/email used to commit to Cloud Manager's Git repository
+  USER_NAME: CM Sync
+  USER_EMAIL: tklein@adobe.com
+  # Directory within the Cloud Manager Git repository
+  PROJECT_DIR: project-b
+  # Cloud Manager's Git repository
+  #MAIN_REPOSITORY: git@github.com:TobiADOBE/ams.git
+  MAIN_REPOSITORY: https://${{ secrets.MAIN_USER }}:${{ secrets.MAIN_PASSWORD }}@git.cloudmanager.adobe.com/deutschebankag/test/
+  # The branch in Cloud Manager's Git repository to push to
+  MAIN_BRANCH : master
+
+# Only run on a push to this branch
+on:
+  push:
+     branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout this project into a sub folder
+      - uses: actions/checkout@v2
+        with:
+          path: sub
+      # Cleanup sub project
+      - name: Clean project
+        run: |
+          git -C sub log --format="%an : %s" -n 1 > commit.txt
+          rm -rf sub/.git
+          rm -rf sub/.github
+      # Set global git configuration
+      - name: Set git config
+        run: |
+          git config --global credential.helper cache
+          git config --global user.email ${USER_EMAIL}
+          git config --global user.name ${USER_NAME}
+      # Checkout the main project
+      - name: Checkout main project
+        run:
+          git clone -b ${MAIN_BRANCH} ${MAIN_REPOSITORY} ${MAIN_BRANCH}
+      # Move sub project
+      - name: Move project to main project
+        run: |
+          rm -rf ${MAIN_BRANCH}/${PROJECT_DIR}
+          mv sub ${MAIN_BRANCH}/${PROJECT_DIR}
+      - name: Commit Changes
+        run: |
+          git -C ${MAIN_BRANCH} add -f ${PROJECT_DIR}
+          git -C ${MAIN_BRANCH} commit -F ../commit.txt
+          git -C ${MAIN_BRANCH} push
